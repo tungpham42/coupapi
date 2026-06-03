@@ -1,6 +1,6 @@
 import { Handler } from "@netlify/functions";
 import { v4 as uuidv4 } from "uuid";
-import { pool } from "./utils/db";
+import { db } from "./utils/db";
 
 const headers = {
   "Access-Control-Allow-Origin": "*",
@@ -91,20 +91,13 @@ function generateShuffledPieces() {
 }
 
 export const handler: Handler = async (event) => {
-  // Bỏ qua preflight request
-  if (event.httpMethod === "OPTIONS") {
+  if (event.httpMethod === "OPTIONS")
     return { statusCode: 200, headers, body: "OK" };
-  }
-
-  if (event.httpMethod !== "POST") {
+  if (event.httpMethod !== "POST")
     return { statusCode: 405, headers, body: "Method Not Allowed" };
-  }
 
   try {
-    // Đọc body để lấy customId
     const body = event.body ? JSON.parse(event.body) : {};
-
-    // Nếu có customId thì sử dụng, nếu không thì tự tạo UUID ngẫu nhiên
     const gameId = body.customId
       ? body.customId
       : uuidv4().substring(0, 6).toUpperCase();
@@ -113,22 +106,26 @@ export const handler: Handler = async (event) => {
       "xnxakaxnx/9/1x5x1/x1x1x1x1x/9/9/X1X1X1X1X/1X5X1/9/XNXAKAXNX";
     const hiddenPieces = generateShuffledPieces();
 
-    await pool.query(
-      `INSERT INTO games (id, current_fen, turn, hidden_pieces, status) VALUES (?, ?, ?, ?, ?)`,
-      [gameId, initialFen, "r", JSON.stringify(hiddenPieces), "waiting"],
-    );
+    // Lưu vào Firestore Collection "games"
+    await db.collection("games").doc(gameId).set({
+      current_fen: initialFen,
+      turn: "r",
+      hidden_pieces: hiddenPieces,
+      status: "waiting",
+      createdAt: new Date().toISOString(),
+    });
 
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({ gameId, fen: initialFen }),
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error creating game:", error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: "Internal Server Error" }),
+      body: JSON.stringify({ error: error.message }),
     };
   }
 };

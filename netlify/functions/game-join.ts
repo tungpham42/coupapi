@@ -1,5 +1,5 @@
 import { Handler } from "@netlify/functions";
-import { pool } from "./utils/db";
+import { db } from "./utils/db";
 
 const headers = {
   "Access-Control-Allow-Origin": "*",
@@ -8,14 +8,10 @@ const headers = {
 };
 
 export const handler: Handler = async (event) => {
-  // Handle CORS Preflight request
-  if (event.httpMethod === "OPTIONS") {
+  if (event.httpMethod === "OPTIONS")
     return { statusCode: 200, headers, body: "OK" };
-  }
-
-  if (event.httpMethod !== "POST") {
+  if (event.httpMethod !== "POST")
     return { statusCode: 405, headers, body: "Method Not Allowed" };
-  }
 
   try {
     const body = event.body ? JSON.parse(event.body) : {};
@@ -23,50 +19,46 @@ export const handler: Handler = async (event) => {
       body.gameId ||
       (event.queryStringParameters && event.queryStringParameters.gameId);
 
-    if (!gameId) {
+    if (!gameId)
       return {
         statusCode: 400,
         headers,
         body: JSON.stringify({ error: "Game ID required" }),
       };
-    }
 
-    const [rows]: any = await pool.query(
-      `SELECT status, current_fen FROM games WHERE id = ?`,
-      [gameId],
-    );
+    const docRef = db.collection("games").doc(gameId);
+    const doc = await docRef.get();
 
-    if (rows.length === 0) {
+    if (!doc.exists)
       return {
         statusCode: 404,
         headers,
-        body: JSON.stringify({ error: "Game not found" }),
+        body: JSON.stringify({ error: "Không tìm thấy phòng" }),
       };
-    }
 
-    if (rows[0].status !== "waiting") {
+    const game = doc.data();
+    if (game?.status !== "waiting") {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: "Game is already playing or finished" }),
+        body: JSON.stringify({ error: "Phòng đang chơi hoặc đã kết thúc" }),
       };
     }
 
-    await pool.query(`UPDATE games SET status = 'playing' WHERE id = ?`, [
-      gameId,
-    ]);
+    // Cập nhật trạng thái thành playing
+    await docRef.update({ status: "playing" });
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ gameId, fen: rows[0].current_fen }),
+      body: JSON.stringify({ gameId, fen: game.current_fen }),
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error joining game:", error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: "Internal Server Error" }),
+      body: JSON.stringify({ error: error.message }),
     };
   }
 };

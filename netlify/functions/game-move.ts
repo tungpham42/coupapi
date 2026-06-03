@@ -1,5 +1,5 @@
 import { Handler } from "@netlify/functions";
-import { pool } from "./utils/db";
+import { db } from "./utils/db";
 import { fenToObj, objToFen } from "./utils/xiangqi";
 
 const headers = {
@@ -9,14 +9,10 @@ const headers = {
 };
 
 export const handler: Handler = async (event) => {
-  // Handle CORS Preflight request
-  if (event.httpMethod === "OPTIONS") {
+  if (event.httpMethod === "OPTIONS")
     return { statusCode: 200, headers, body: "OK" };
-  }
-
-  if (event.httpMethod !== "POST") {
+  if (event.httpMethod !== "POST")
     return { statusCode: 405, headers, body: "Method Not Allowed" };
-  }
 
   try {
     const { gameId, from, to, player } = JSON.parse(event.body || "{}");
@@ -28,43 +24,36 @@ export const handler: Handler = async (event) => {
       };
     }
 
-    const [rows]: any = await pool.query(
-      `SELECT current_fen, turn, status, hidden_pieces FROM games WHERE id = ?`,
-      [gameId],
-    );
+    const docRef = db.collection("games").doc(gameId);
+    const doc = await docRef.get();
 
-    if (rows.length === 0) {
+    if (!doc.exists)
       return {
         statusCode: 404,
         headers,
         body: JSON.stringify({ success: false, message: "Game not found" }),
       };
-    }
-    const game = rows[0];
 
-    if (game.status !== "playing") {
+    const game = doc.data();
+
+    if (game?.status !== "playing")
       return {
         statusCode: 400,
         headers,
         body: JSON.stringify({ success: false, message: "Game is not active" }),
       };
-    }
-    if (game.turn !== player) {
+    if (game?.turn !== player)
       return {
         statusCode: 400,
         headers,
         body: JSON.stringify({ success: false, message: "Not your turn" }),
       };
-    }
 
     const boardObj = fenToObj(game.current_fen);
-    let hiddenPieces =
-      typeof game.hidden_pieces === "string"
-        ? JSON.parse(game.hidden_pieces)
-        : game.hidden_pieces;
+    let hiddenPieces = game.hidden_pieces; // Firestore trả về Object chuẩn
 
     const movingPiece = boardObj[from];
-    if (!movingPiece) {
+    if (!movingPiece)
       return {
         statusCode: 400,
         headers,
@@ -73,7 +62,6 @@ export const handler: Handler = async (event) => {
           message: "No piece at source square",
         }),
       };
-    }
 
     // Move logic
     delete boardObj[from];
@@ -82,24 +70,27 @@ export const handler: Handler = async (event) => {
     let revealedPiece = null;
     if (movingPiece[1] === "X" && hiddenPieces[from]) {
       revealedPiece = hiddenPieces[from];
-      boardObj[to] = revealedPiece; // Replace X with the actual piece
+      boardObj[to] = revealedPiece;
       delete hiddenPieces[from];
     }
 
     const newFen = objToFen(boardObj);
     const nextTurn = game.turn === "r" ? "b" : "r";
 
-    // Check Win Condition (Simple: is King dead?)
+    // Check Win Condition
     const kings = Object.values(boardObj).filter((p) => p[1] === "K");
     let newStatus = game.status;
     if (kings.length < 2) {
       newStatus = "finished";
     }
 
-    await pool.query(
-      `UPDATE games SET current_fen = ?, turn = ?, hidden_pieces = ?, status = ? WHERE id = ?`,
-      [newFen, nextTurn, JSON.stringify(hiddenPieces), newStatus, gameId],
-    );
+    // Cập nhật lại Firestore
+    await docRef.update({
+      current_fen: newFen,
+      turn: nextTurn,
+      hidden_pieces: hiddenPieces,
+      status: newStatus,
+    });
 
     return {
       statusCode: 200,
@@ -112,15 +103,12 @@ export const handler: Handler = async (event) => {
         status: newStatus,
       }),
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error processing move:", error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({
-        success: false,
-        message: "Internal Server Error",
-      }),
+      body: JSON.stringify({ success: false, message: error.message }),
     };
   }
 };

@@ -1,10 +1,19 @@
-/// <reference types="node" />
-import mysql from "mysql2/promise";
+import * as admin from "firebase-admin";
 
-// Use a connection pool to manage connections efficiently in a serverless environment
-export const pool = mysql.createPool({
-  uri: process.env.MYSQL_DATABASE_URL, // e.g., mysql://user:pass@host:3306/dbname
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-});
+// Đảm bảo Firebase chỉ khởi tạo 1 lần trong môi trường Serverless
+if (!admin.apps.length) {
+  try {
+    // Đọc Service Account JSON từ biến môi trường của Netlify
+    const serviceAccount = JSON.parse(
+      process.env.FIREBASE_SERVICE_ACCOUNT || "{}",
+    );
+
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+    });
+  } catch (error) {
+    console.error("Lỗi khởi tạo Firebase Admin:", error);
+  }
+}
+
+export const db = admin.firestore();
