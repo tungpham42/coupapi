@@ -102,8 +102,9 @@ export const handler: Handler = async (event) => {
       ? body.customId
       : uuidv4().substring(0, 6).toUpperCase();
 
+    // ĐÃ SỬA LỖI: Cập nhật chuẩn chuỗi cờ úp
     const initialFen =
-      "xnxakaxnx/9/1x5x1/x1x1x1x1x/9/9/X1X1X1X1X/1X5X1/9/XNXAKAXNX";
+      "xxxxkxxxx/9/1x5x1/x1x1x1x1x/9/9/X1X1X1X1X/1X5X1/9/XXXXKXXXX";
     const hiddenPieces = generateShuffledPieces();
 
     // Lưu vào Firestore Collection "games"

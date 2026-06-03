@@ -126,8 +126,9 @@ export const handler: Handler = async (event) => {
     } else {
       // 2. Không có phòng chờ -> Tạo phòng mới (Quân Đỏ)
       const gameId = uuidv4().substring(0, 6).toUpperCase();
+      // ĐÃ SỬA LỖI: Sĩ và Mã hiện đúng ở trạng thái úp ban đầu
       const initialFen =
-        "xnxakaxnx/9/1x5x1/x1x1x1x1x/9/9/X1X1X1X1X/1X5X1/9/XNXAKAXNX";
+        "xxxxkxxxx/9/1x5x1/x1x1x1x1x/9/9/X1X1X1X1X/1X5X1/9/XXXXKXXXX";
       const hiddenPieces = generateShuffledPieces();
 
       // Lưu vào Firestore Collection "games"
