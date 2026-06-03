@@ -91,7 +91,7 @@ function generateShuffledPieces() {
 }
 
 export const handler: Handler = async (event) => {
-  // Handle CORS Preflight request
+  // Bỏ qua preflight request
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 200, headers, body: "OK" };
   }
@@ -101,7 +101,14 @@ export const handler: Handler = async (event) => {
   }
 
   try {
-    const gameId = uuidv4().substring(0, 6).toUpperCase(); // e.g., "A8F9B2"
+    // Đọc body để lấy customId
+    const body = event.body ? JSON.parse(event.body) : {};
+
+    // Nếu có customId thì sử dụng, nếu không thì tự tạo UUID ngẫu nhiên
+    const gameId = body.customId
+      ? body.customId
+      : uuidv4().substring(0, 6).toUpperCase();
+
     const initialFen =
       "xnxakaxnx/9/1x5x1/x1x1x1x1x/9/9/X1X1X1X1X/1X5X1/9/XNXAKAXNX";
     const hiddenPieces = generateShuffledPieces();
