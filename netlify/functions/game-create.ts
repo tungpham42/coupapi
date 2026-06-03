@@ -2,6 +2,12 @@ import { Handler } from "@netlify/functions";
 import { v4 as uuidv4 } from "uuid";
 import { pool } from "./utils/db";
 
+const headers = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+};
+
 function generateShuffledPieces() {
   const redPool = [
     "rA",
@@ -85,8 +91,14 @@ function generateShuffledPieces() {
 }
 
 export const handler: Handler = async (event) => {
-  if (event.httpMethod !== "POST")
-    return { statusCode: 405, body: "Method Not Allowed" };
+  // Handle CORS Preflight request
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 200, headers, body: "OK" };
+  }
+
+  if (event.httpMethod !== "POST") {
+    return { statusCode: 405, headers, body: "Method Not Allowed" };
+  }
 
   try {
     const gameId = uuidv4().substring(0, 6).toUpperCase(); // e.g., "A8F9B2"
@@ -101,12 +113,14 @@ export const handler: Handler = async (event) => {
 
     return {
       statusCode: 200,
+      headers,
       body: JSON.stringify({ gameId, fen: initialFen }),
     };
   } catch (error) {
     console.error("Error creating game:", error);
     return {
       statusCode: 500,
+      headers,
       body: JSON.stringify({ error: "Internal Server Error" }),
     };
   }

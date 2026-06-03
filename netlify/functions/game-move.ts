@@ -2,43 +2,60 @@ import { Handler } from "@netlify/functions";
 import { pool } from "./utils/db";
 import { fenToObj, objToFen } from "./utils/xiangqi";
 
+const headers = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+};
+
 export const handler: Handler = async (event) => {
-  if (event.httpMethod !== "POST")
-    return { statusCode: 405, body: "Method Not Allowed" };
+  // Handle CORS Preflight request
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 200, headers, body: "OK" };
+  }
+
+  if (event.httpMethod !== "POST") {
+    return { statusCode: 405, headers, body: "Method Not Allowed" };
+  }
 
   try {
     const { gameId, from, to, player } = JSON.parse(event.body || "{}");
-    if (!gameId || !from || !to || !player)
+    if (!gameId || !from || !to || !player) {
       return {
         statusCode: 400,
+        headers,
         body: JSON.stringify({ success: false, message: "Missing parameters" }),
       };
+    }
 
     const [rows]: any = await pool.query(
       `SELECT current_fen, turn, status, hidden_pieces FROM games WHERE id = ?`,
       [gameId],
     );
 
-    if (rows.length === 0)
+    if (rows.length === 0) {
       return {
         statusCode: 404,
+        headers,
         body: JSON.stringify({ success: false, message: "Game not found" }),
       };
+    }
     const game = rows[0];
 
-    if (game.status !== "playing")
+    if (game.status !== "playing") {
       return {
         statusCode: 400,
+        headers,
         body: JSON.stringify({ success: false, message: "Game is not active" }),
       };
-    if (game.turn !== player)
+    }
+    if (game.turn !== player) {
       return {
         statusCode: 400,
+        headers,
         body: JSON.stringify({ success: false, message: "Not your turn" }),
       };
-
-    // Note: For absolute security, you should port validateGeometry from index.html here.
-    // For now, this assumes the frontend validated the move and executes it.
+    }
 
     const boardObj = fenToObj(game.current_fen);
     let hiddenPieces =
@@ -47,14 +64,16 @@ export const handler: Handler = async (event) => {
         : game.hidden_pieces;
 
     const movingPiece = boardObj[from];
-    if (!movingPiece)
+    if (!movingPiece) {
       return {
         statusCode: 400,
+        headers,
         body: JSON.stringify({
           success: false,
           message: "No piece at source square",
         }),
       };
+    }
 
     // Move logic
     delete boardObj[from];
@@ -84,6 +103,7 @@ export const handler: Handler = async (event) => {
 
     return {
       statusCode: 200,
+      headers,
       body: JSON.stringify({
         success: true,
         newFen,
@@ -96,6 +116,7 @@ export const handler: Handler = async (event) => {
     console.error("Error processing move:", error);
     return {
       statusCode: 500,
+      headers,
       body: JSON.stringify({
         success: false,
         message: "Internal Server Error",
